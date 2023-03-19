@@ -28,13 +28,13 @@
 team_t team = {
 	/* Team name */
 	"",
-	/* First member's full name */
+	/* Liam Ruiz-Steblein */
 	"",
-	/* First member's NetID */
+	/* ldr3 */
 	"",
-	/* Second member's full name (leave blank if none) */
+	/* Jared Duran */
 	"",
-	/* Second member's NetID (leave blank if none) */
+	/* jad21 */
 	""
 };
 
