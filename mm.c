@@ -167,6 +167,8 @@ mm_malloc(size_t size)
 	}
 
 	/* No fit found.  Get more memory and place the block. */
+
+	//Try coalescing here first? just a thought (w/ deffered coalescing)
 	extendsize = MAX(asize, CHUNKSIZE);
 	if ((bp = extend_heap(extendsize / WSIZE)) == NULL)  
 		return (NULL);
@@ -190,10 +192,13 @@ mm_free(void *bp)
 	if (bp == NULL)
 		return;
 
+	//Edit so just frees the block (can do coalescing later)
 	/* Free and coalesce the block. */
 	size = GET_SIZE(HDRP(bp));
 	PUT(HDRP(bp), PACK(size, 0));
 	PUT(FTRP(bp), PACK(size, 0));
+	
+	//Add block back into freelist
 	coalesce(bp);
 }
 
@@ -231,6 +236,8 @@ mm_realloc(void *ptr, size_t size)
 	/* If realloc() fails, the original block is left untouched.  */
 	if (newptr == NULL)
 		return (NULL);
+
+	//Don't copy if possible - really expensive operation 
 
 	/* Copy just the old data, not the old header and footer. */
 	oldsize = GET_SIZE(HDRP(ptr)) - DSIZE;
