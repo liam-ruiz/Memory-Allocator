@@ -40,8 +40,8 @@ team_t team = {
 
 //Structure for doubly-linked list 
 struct pointer_data {
-	struct pointer_data *next;
-	struct pointer_data *prev;
+	void *next;
+	void *prev;
 };
 
 /* Basic constants and macros: */
@@ -100,11 +100,15 @@ static void printblock(void *bp);
 int
 mm_init(void) 
 {
-	//void *bp; 
+	void *bp; 
+	struct pointer_data dummy_head;
 
 	/*creates the memory for the pointer_data structure, dummy head*/
-	// if ((heap_listp = mem_sbrk(4*WSIZE)) == (void *)-1)
-	// 	return (-1);
+	if ((heap_listp = mem_sbrk(2*WSIZE)) == (void *)-1)
+		return (-1);
+	
+	*(struct pointer_data *)heap_listp;
+
 	//*(void *)heap_listp = pointer_data->prev;
 	//wrong: *(uintptr_t *)heap_listp = ...);
 	
