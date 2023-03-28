@@ -27,12 +27,15 @@
  ********************************************************/
 team_t team = {
 	/* Team name */
-	"",
+	"idk",
 	/* Liam Ruiz-Steblein */
+	"Liam Ruiz-Steblein",
 	"Liam Ruiz-Steblein",
 	/* ldr3 */
 	"ldr3",
+	"ldr3",
 	/* Jared Duran */
+	"Jared Duran",
 	"Jared Duran",
 	/* jad21 */
 	"jad21"
