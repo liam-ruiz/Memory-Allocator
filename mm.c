@@ -26,8 +26,8 @@
  * provide your team information in the following struct.
  ********************************************************/
 team_t team = {
-	/* Malloc Madmen */
-	"Malloc Madmen",
+	/* Team name */
+	"",
 	/* Liam Ruiz-Steblein */
 	"Liam Ruiz-Steblein",
 	/* ldr3 */
