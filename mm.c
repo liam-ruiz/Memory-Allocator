@@ -27,15 +27,12 @@
  ********************************************************/
 team_t team = {
 	/* Team name */
-	"idk",
+	"Malloc Madmen",
 	/* Liam Ruiz-Steblein */
-	"Liam Ruiz-Steblein",
 	"Liam Ruiz-Steblein",
 	/* ldr3 */
 	"ldr3",
-	"ldr3",
 	/* Jared Duran */
-	"Jared Duran",
 	"Jared Duran",
 	/* jad21 */
 	"jad21"
@@ -51,6 +48,7 @@ struct pointer_data {
 #define WSIZE      sizeof(void *) /* Word and header/footer size (bytes) */
 #define DSIZE      (2 * WSIZE)    /* Doubleword size (bytes) */
 #define CHUNKSIZE  (1 << 12)      /* Extend heap by this amount (bytes) */
+#define ALIGNMENT  (sizeof(char) * 8)		  /* Byte alignment size (bytes) */
 
 #define MAX(x, y)  ((x) > (y) ? (x) : (y))  
 
@@ -62,7 +60,7 @@ struct pointer_data {
 #define PUT(p, val)  (*(uintptr_t *)(p) = (val))
 
 /* Read the size and allocated fields from address p. */
-#define GET_SIZE(p)   (GET(p) & ~(DSIZE - 1))
+#define GET_SIZE(p)   (GET(p) & ~(ALIGNMENT - 1))
 #define GET_ALLOC(p)  (GET(p) & 0x1)
 
 /* Given block ptr bp, compute address of its header and footer. */
@@ -82,6 +80,10 @@ static void *extend_heap(size_t words);
 static void *find_fit(size_t asize);
 static void place(void *bp, size_t asize);
 
+/* Addedfunction prototypes for helper routines: */
+static void insert_freeblock(void *bp,  void *where_head);
+static void remove_freeblock(void *bp);
+
 /* Function prototypes for heap consistency checker routines: */
 static void checkblock(void *bp);
 static void checkheap(bool verbose);
@@ -100,25 +102,28 @@ mm_init(void)
 {
 	//void *bp; 
 
-	/*creates the memory for the pointer_data structure*/
-	// if (heap_listp = mem_sbrk(2*WSIZE) == (void *)-1)
+	/*creates the memory for the pointer_data structure, dummy head*/
+	// if ((heap_listp = mem_sbrk(4*WSIZE)) == (void *)-1)
 	// 	return (-1);
 	//*(void *)heap_listp = pointer_data->prev;
 	//wrong: *(uintptr_t *)heap_listp = ...);
+	
+	//bp = heap_listp; 
 	
 	
 	//need to cast to a bp? 
 	//not sure how to do this yet 
 
+
+	//TODO: Allocate space for struct, dummy head, connect dummy head to free block 
+
 	/* Create the initial empty heap. */
-	if ((heap_listp = mem_sbrk(4 * WSIZE)) == (void *)-1)
+	if ((heap_listp = mem_sbrk(3 * WSIZE)) == (void *)-1)
 		return (-1);
-	
-	PUT(heap_listp, 0);                            /* Alignment padding */
-	PUT(heap_listp + (1 * WSIZE), PACK(DSIZE, 1)); /* Prologue header */ 
-	PUT(heap_listp + (2 * WSIZE), PACK(DSIZE, 1)); /* Prologue footer */ 
-	PUT(heap_listp + (3 * WSIZE), PACK(0, 1));     /* Epilogue header */
-	heap_listp += (2 * WSIZE); /*Moves pointer to prologue footer*/
+	PUT(heap_listp, PACK(DSIZE, 1)); /* Prologue header */ 
+	PUT(heap_listp + (1 * WSIZE), PACK(DSIZE, 1)); /* Prologue footer */ 
+	PUT(heap_listp + (2 * WSIZE), PACK(0, 1));     /* Epilogue header */
+	heap_listp += (1 * WSIZE); /*Moves pointer to prologue footer*/
 
 	/* Extend the empty heap with a free block of CHUNKSIZE bytes. */
 	if (extend_heap(CHUNKSIZE / WSIZE) == NULL)
@@ -152,7 +157,8 @@ mm_malloc(size_t size)
 	else
 		asize = DSIZE * ((size + DSIZE + (DSIZE - 1)) / DSIZE);
 	
-	/*Gets the freed block */
+
+	//TODO: EDIT FINDFIT
 
 	/* Search the free list for a fit. */
 	if ((bp = find_fit(asize)) != NULL) {
@@ -238,15 +244,6 @@ mm_realloc(void *ptr, size_t size)
 	return (newptr);
 }
 
-/*
-* Requres:
-*
-*
-*/
-// static int 
-// insert_head()
-
-
 
 /*
  * The following routines are internal helper routines.
@@ -328,6 +325,10 @@ find_fit(size_t asize)
 {
 	void *bp;
 
+	/*Change: search through free list */
+	
+	
+
 	/* Search for the first fit. */
 	for (bp = heap_listp; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp)) {
 		if (!GET_ALLOC(HDRP(bp)) && asize <= GET_SIZE(HDRP(bp)))
@@ -351,6 +352,8 @@ place(void *bp, size_t asize)
 {
 	size_t csize = GET_SIZE(HDRP(bp));   
 
+	//TODO: EDIT FREELIST (if larger and needs to split)
+
 	if ((csize - asize) >= (2 * DSIZE)) { 
 		PUT(HDRP(bp), PACK(asize, 1));
 		PUT(FTRP(bp), PACK(asize, 1));
@@ -361,7 +364,49 @@ place(void *bp, size_t asize)
 		PUT(HDRP(bp), PACK(csize, 1));
 		PUT(FTRP(bp), PACK(csize, 1));
 	}
+
 }
+
+/*
+* Requres:
+* 
+*
+* Effects: 
+*
+*/
+static void
+insert_freeblock(void *bp,  void *where_head) 
+{
+	struct pointer_data head_freelist;
+	struct pointer_data insert_freelist;
+	//IDK abt this tho:
+	head_freelist = (pointer_data *)where_head;
+	insert_freelist = (pointer_data *)bp;
+	//FIX TO FIFO 
+	head_freelist->next->prev = insert_freelist;
+	insert_freelist->next = head_freelist->next;
+	insert_freelist->prev = head_freelist;
+	head_freelist->next = insert_freelist;
+
+}
+/*
+* Requires:
+*
+* Effects: 
+*
+*/
+static void 
+remove_freeblock(void *bp)
+{
+	//Also IDK 
+	struct pointer_data remove_freelist;
+	
+	remove_freelist = (pointer_data *)bp;
+	remove_freelist->prev->next = remove_freelist->next;
+	remove_freelist->next->prev = remove_freelist->prev;
+}
+
+
 
 /* 
  * The remaining routines are heap consistency checker routines. 
