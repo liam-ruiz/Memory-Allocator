@@ -100,15 +100,26 @@ static void printblock(void *bp);
 int
 mm_init(void) 
 {
-	void *bp; 
-	struct pointer_data dummy_head;
-
-	/*creates the memory for the pointer_data structure, dummy head*/
-	if ((heap_listp = mem_sbrk(2*WSIZE)) == (void *)-1)
-		return (-1);
 	
-	*(struct pointer_data *)heap_listp;
+	//struct pointer_data dummy_head;
+	//cant use this ^ need to cast 
 
+	/*creates the memory for the dummy head, prologue & epilogue*/
+	if ((heap_listp = mem_sbrk(5*WSIZE)) == (void *)-1)
+		return (-1);
+	// Put the address of the next node
+	PUT(heap_listp, &heap_listp + (sizeof(void *)));
+	// Put the address of the prev node
+	PUT(heap_listp + (1 * WSIZE), &heap_listp);
+	// Put prologue hdr, ftr, and epilogue hdr
+	PUT(heap_listp + (2 * WSIZE), PACK(DSIZE, 1)); /* Prologue header */ 
+	PUT(heap_listp + (3 * WSIZE), PACK(DSIZE, 1)); /* Prologue footer */ 
+	PUT(heap_listp + (4 * WSIZE), PACK(0, 1))     /* Epilogue header */
+
+	heap_listp += (3 * WSIZE);//Aligns the heap pointer between prologue hdr & ftr
+
+	dummy_head = *(struct pointer_data *)heap_listp;
+	
 	//*(void *)heap_listp = pointer_data->prev;
 	//wrong: *(uintptr_t *)heap_listp = ...);
 	
@@ -121,17 +132,11 @@ mm_init(void)
 
 	//TODO: Allocate space for struct, dummy head, connect dummy head to free block 
 
-	/* Create the initial empty heap. */
-	if ((heap_listp = mem_sbrk(3 * WSIZE)) == (void *)-1)
-		return (-1);
-	PUT(heap_listp, PACK(DSIZE, 1)); /* Prologue header */ 
-	PUT(heap_listp + (1 * WSIZE), PACK(DSIZE, 1)); /* Prologue footer */ 
-	PUT(heap_listp + (2 * WSIZE), PACK(0, 1));     /* Epilogue header */
-	heap_listp += (1 * WSIZE); /*Moves pointer to prologue footer*/
-
 	/* Extend the empty heap with a free block of CHUNKSIZE bytes. */
 	if (extend_heap(CHUNKSIZE / WSIZE) == NULL)
 		return (-1);
+	
+	//insert the CHUNKSIZE block into the dummy head (explicit list)
 	return (0);
 }
 
@@ -156,10 +161,10 @@ mm_malloc(size_t size)
 		return (NULL);
 
 	/* Adjust block size to include overhead and alignment reqs. */
-	if (size <= DSIZE)
-		asize = 2 * DSIZE;
+	if (size <= ALIGNMENT)
+		asize = ALIGNMENT + DSIZE;
 	else
-		asize = DSIZE * ((size + DSIZE + (DSIZE - 1)) / DSIZE);
+		asize = (ALIGNMENT * ((size + (ALIGNMENT - 1)) / ALIGNMENT)) + DSIZE;
 	
 
 	//TODO: EDIT FINDFIT
@@ -172,7 +177,10 @@ mm_malloc(size_t size)
 
 	/* No fit found.  Get more memory and place the block. */
 
-	//Try coalescing here first? just a thought (w/ deffered coalescing)
+
+	//Try coalescing here first? just a thought (w/ deffered coalescing) during 
+	//segragated explicit 
+
 	extendsize = MAX(asize, CHUNKSIZE);
 	if ((bp = extend_heap(extendsize / WSIZE)) == NULL)  
 		return (NULL);
@@ -336,9 +344,12 @@ find_fit(size_t asize)
 {
 	void *bp;
 
+	void *bp2;
 	/*Change: search through free list */
 	
 	
+	(struct pointer_data *)bp2 = void *mem_heap_lo(void);
+	//bp2->next
 
 	/* Search for the first fit. */
 	for (bp = heap_listp; GET_SIZE(HDRP(bp)) > 0; bp = NEXT_BLKP(bp)) {
@@ -379,7 +390,7 @@ place(void *bp, size_t asize)
 }
 
 /*
-* Requres:
+* Requires:
 * 
 *
 * Effects: 
@@ -434,7 +445,7 @@ static void
 checkblock(void *bp) 
 {
 
-	if ((uintptr_t)bp % DSIZE)
+	if ((uintptr_t)bp % ALIGNMENT)
 		printf("Error: %p is not doubleword aligned\n", bp);
 	if (GET(HDRP(bp)) != GET(FTRP(bp)))
 		printf("Error: header does not match footer\n");
