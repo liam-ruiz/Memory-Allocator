@@ -26,16 +26,22 @@
  * provide your team information in the following struct.
  ********************************************************/
 team_t team = {
-	/* Team name */
-	"",
+	/* Malloc Madmen */
+	"Malloc Madmen",
 	/* Liam Ruiz-Steblein */
-	"",
+	"Liam Ruiz-Steblein",
 	/* ldr3 */
-	"",
+	"ldr3",
 	/* Jared Duran */
-	"",
+	"Jared Duran",
 	/* jad21 */
-	""
+	"jad21"
+};
+
+//Structure for doubly-linked list 
+struct pointer_data {
+	struct pointer_data *next;
+	struct pointer_data *prev;
 };
 
 /* Basic constants and macros: */
@@ -89,15 +95,27 @@ static void printblock(void *bp);
 int
 mm_init(void) 
 {
+	//void *bp; 
+
+	/*creates the memory for the pointer_data structure*/
+	// if (heap_listp = mem_sbrk(2*WSIZE) == (void *)-1)
+	// 	return (-1);
+	//*(void *)heap_listp = pointer_data->prev;
+	//wrong: *(uintptr_t *)heap_listp = ...);
+	
+	
+	//need to cast to a bp? 
+	//not sure how to do this yet 
 
 	/* Create the initial empty heap. */
 	if ((heap_listp = mem_sbrk(4 * WSIZE)) == (void *)-1)
 		return (-1);
+	
 	PUT(heap_listp, 0);                            /* Alignment padding */
 	PUT(heap_listp + (1 * WSIZE), PACK(DSIZE, 1)); /* Prologue header */ 
 	PUT(heap_listp + (2 * WSIZE), PACK(DSIZE, 1)); /* Prologue footer */ 
 	PUT(heap_listp + (3 * WSIZE), PACK(0, 1));     /* Epilogue header */
-	heap_listp += (2 * WSIZE);
+	heap_listp += (2 * WSIZE); /*Moves pointer to prologue footer*/
 
 	/* Extend the empty heap with a free block of CHUNKSIZE bytes. */
 	if (extend_heap(CHUNKSIZE / WSIZE) == NULL)
@@ -130,6 +148,8 @@ mm_malloc(size_t size)
 		asize = 2 * DSIZE;
 	else
 		asize = DSIZE * ((size + DSIZE + (DSIZE - 1)) / DSIZE);
+	
+	/*Gets the freed block */
 
 	/* Search the free list for a fit. */
 	if ((bp = find_fit(asize)) != NULL) {
@@ -214,6 +234,16 @@ mm_realloc(void *ptr, size_t size)
 
 	return (newptr);
 }
+
+/*
+* Requres:
+*
+*
+*/
+// static int 
+// insert_head()
+
+
 
 /*
  * The following routines are internal helper routines.
