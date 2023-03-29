@@ -110,13 +110,13 @@ mm_init(void)
 	if ((heap_listp = mem_sbrk(5*WSIZE)) == (void *)-1)
 		return (-1);
 
-	dummy_head = (struct pointer_data *)heap_listp;
+	dummy_head = (struct pointer_data *)mem_heap_lo();
 	printf("dummy head: %p\n", dummy_head);
-	printf("lo heap: %p\n", mem_heap_lo());
+	
 	// Put the address of the next node
-	PUT(heap_listp, (long)&heap_listp);
-	// Put the address of the prev node
-	PUT(heap_listp + (1 * WSIZE), (long)&heap_listp);
+	// PUT(heap_listp, (long)&heap_listp);
+	// // Put the address of the prev node
+	// PUT(heap_listp + (1 * WSIZE), (long)&heap_listp);
 	// Put prologue hdr, ftr, and epilogue hdr
 	PUT(heap_listp + (2 * WSIZE), PACK(DSIZE, 1)); /* Prologue header */ 
 	PUT(heap_listp + (3 * WSIZE), PACK(DSIZE, 1)); /* Prologue footer */ 
@@ -128,8 +128,7 @@ mm_init(void)
 	printf("pro ftr adr: %p\n", ((heap_listp + (3*WSIZE))));
 	printf("ep hdr adr: %p\n", (heap_listp + (4*WSIZE)));
 	
-	printf("next: %p\n", dummy_head->next);
-	printf("prev: %p\n", dummy_head->prev);
+
 	printf("pro hdr: %u\n", *(heap_listp + (2*WSIZE)));
 	printf("pro ftr: %u\n", *((heap_listp + (3*WSIZE))));
 	printf("ep hdr: %u\n", *(heap_listp + (4*WSIZE)));
@@ -140,14 +139,18 @@ mm_init(void)
 	if ((bp = extend_heap(CHUNKSIZE / WSIZE)) == NULL)
 		return (-1);
 	
+
+	dummy_head->next = bp;
+	dummy_head->prev = bp;
 	//insert the CHUNKSIZE block into the dummy head (explicit list)
 	insert_freeblock(bp, dummy_head);
+	printf("hp: %p\n", heap_listp);
 	printf("freeblock adr: %p\n", bp);
 	//bp = (struct pointer_data *)
-	printf("freeblock next: %u\n", *((int *)bp));
-	printf("freeblock prev: %u\n", *(((int *)bp) + 2));
-	printf("dummyhead next: %u\n", *((int *)(heap_listp - (3 * WSIZE))));
-	printf("dummyhead prev: %u\n", *((int *)(heap_listp - (2 * WSIZE))));
+	printf("freeblock next: %p\n", ((struct pointer_data *)bp)->next);
+	printf("freeblock prev: %p\n", ((struct pointer_data *)bp)->prev);
+	printf("dummyhead next: %p\n", dummy_head->next);
+	printf("dummyhead prev: %p\n", dummy_head->prev);
 	//printf("End of mm_init\n");
 	return (0);
 }
@@ -378,9 +381,10 @@ find_fit(size_t asize)
 	// 	if (!GET_ALLOC(HDRP(bp)) && asize <= GET_SIZE(HDRP(bp)))
 	// 		return (bp);
 	// }
+	
 	// Assign to dummy_head->next
 	bp = ((struct pointer_data *)(heap_listp - (3 * WSIZE)))->next;
-	printf("bp before: %lu\n", *((long *)bp));
+	//printf("bp before: %lu\n", *((long *)bp));
 	//printf("hp before: %lu\n", *((long *)(heap_listp - (3*WSIZE))));
 	while (((char *)bp) != (heap_listp - (3 * WSIZE))) {
 		//printf("bp: %lu\n", *(long *)bp);
@@ -435,13 +439,23 @@ static void
 insert_freeblock(void *bp,  void *target) 
 {
 	//Casts to struct pointer_data * to use next and prev from the struct.
+	struct pointer_data *targetNode, *bpNode;
 
+	targetNode = (struct pointer_data *)target;
+	bpNode = (struct pointer_data *)bp;
 	//sets the successor of target's prev to bp
-	((struct pointer_data *)
-	    &(((struct pointer_data *)&target)->next))->prev = bp;
-	((struct pointer_data *)&bp)->next = ((struct pointer_data *)&target)->next;
-	((struct pointer_data *)&bp)->prev = target;
-	((struct pointer_data *)&target)->next = bp;
+	// ((struct pointer_data *)
+	//     &(((struct pointer_data *)&target)->next))->prev = bp;
+	// ((struct pointer_data *)&bp)->next = ((struct pointer_data *)&target)->next;
+	// ((struct pointer_data *)&bp)->prev = target;
+	// ((struct pointer_data *)&target)->next = bp;
+	printf("")
+
+	((struct pointer_data *)(targetNode->next))->prev = bpNode;
+	bpNode->next = targetNode->next;
+	bpNode->prev = targetNode;
+	targetNode->next = bpNode;
+
 
 }
 /*
@@ -454,11 +468,16 @@ static void
 remove_freeblock(void *bp)
 {
 	//Casts to struct pointer_data * to use next and prev from the struct.
-	((struct pointer_data *)
-	    &(((struct pointer_data *)&bp)->prev))->next = ((struct pointer_data *)&bp)->next;
-	((struct pointer_data *)
-	    &(((struct pointer_data *)&bp)->next))->prev = ((struct pointer_data *)&bp)->prev;
+	struct pointer_data *bpNode;
 	
+	bpNode = (struct pointer_data *)bp;
+	// ((struct pointer_data *)
+	//     &(((struct pointer_data *)&bp)->prev))->next = ((struct pointer_data *)&bp)->next;
+	// ((struct pointer_data *)
+	//     &(((struct pointer_data *)&bp)->next))->prev = ((struct pointer_data *)&bp)->prev;
+	
+	((struct pointer_data *)(bpNode->prev))->next = bpNode->next;
+	((struct pointer_data *)(bpNode->next))->prev = bpNode->prev;
 }
 
 //Check that everything in freelist is actually free in checking routine 
