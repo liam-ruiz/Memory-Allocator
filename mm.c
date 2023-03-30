@@ -107,11 +107,13 @@ mm_init(void)
 	void *bp;
 
 	/*creates the memory for the dummy head, prologue & epilogue*/
-	if ((heap_listp = mem_sbrk(5*WSIZE)) == (void *)-1)
+	if ((heap_listp = mem_sbrk(5*WSIZE)) == (void *)-1) {
 		return (-1);
+	}
+	
 
 	dummy_head = (struct pointer_data *)mem_heap_lo();
-	printf("dummy head: %p\n", dummy_head);
+	//printf("dummy head: %p\n", dummy_head);
 	
 	// Put the address of the next node
 	//PUT(heap_listp, (long)&heap_listp);
@@ -122,35 +124,33 @@ mm_init(void)
 	PUT(heap_listp + (3 * WSIZE), PACK(DSIZE, 1)); /* Prologue footer */ 
 	PUT(heap_listp + (4 * WSIZE), PACK(0, 1));   /* Epilogue header */
 
-	printf("next adr: %p\n", heap_listp);
-	printf("prev adr: %p\n", (heap_listp + (1*WSIZE)));
-	printf("pro hdr adr: %p\n", (heap_listp + (2*WSIZE)));
-	printf("pro ftr adr: %p\n", ((heap_listp + (3*WSIZE))));
-	printf("ep hdr adr: %p\n", (heap_listp + (4*WSIZE)));
+	// printf("next adr: %p\n", heap_listp);
+	// printf("prev adr: %p\n", (heap_listp + (1*WSIZE)));
+	// printf("pro hdr adr: %p\n", (heap_listp + (2*WSIZE)));
+	// printf("pro ftr adr: %p\n", ((heap_listp + (3*WSIZE))));
+	// printf("ep hdr adr: %p\n", (heap_listp + (4*WSIZE)));
 	
 
-	printf("pro hdr: %u\n", *(heap_listp + (2*WSIZE)));
-	printf("pro ftr: %u\n", *((heap_listp + (3*WSIZE))));
-	printf("ep hdr: %u\n", *(heap_listp + (4*WSIZE)));
+	// printf("pro hdr: %u\n", *(heap_listp + (2*WSIZE)));
+	// printf("pro ftr: %u\n", *((heap_listp + (3*WSIZE))));
+	// printf("ep hdr: %u\n", *(heap_listp + (4*WSIZE)));
 
 	heap_listp += (3 * WSIZE);//Aligns the heap pointer between prologue hdr & ftr
-
-	/* Extend the empty heap with a free block of CHUNKSIZE bytes. */
-	if ((bp = extend_heap(CHUNKSIZE / WSIZE)) == NULL)
-		return (-1);
-	
-
 	dummy_head->next = dummy_head;
 	dummy_head->prev = dummy_head;
-	//insert the CHUNKSIZE block into the dummy head (explicit list)
-	insert_freeblock(bp, dummy_head);
-	printf("hp: %p\n", heap_listp);
-	printf("freeblock adr: %p\n", bp);
+	/* Extend the empty heap with a free block of CHUNKSIZE bytes. */
+	if ((bp = extend_heap(CHUNKSIZE / WSIZE)) == NULL) {
+		return (-1);
+	}
+		
+		
+	// printf("hp: %p\n", heap_listp);
+	// printf("freeblock adr: %p\n", bp);
 	//bp = (struct pointer_data *)
-	printf("freeblock next: %p\n", ((struct pointer_data *)bp)->next);
-	printf("freeblock prev: %p\n", ((struct pointer_data *)bp)->prev);
-	printf("dummyhead next: %p\n", dummy_head->next);
-	printf("dummyhead prev: %p\n", dummy_head->prev);
+	// printf("freeblock next: %p\n", ((struct pointer_data *)bp)->next);
+	// printf("freeblock prev: %p\n", ((struct pointer_data *)bp)->prev);
+	// printf("dummyhead next: %p\n", dummy_head->next);
+	// printf("dummyhead prev: %p\n", dummy_head->prev);
 	//printf("End of mm_init\n");
 	return (0);
 }
@@ -171,37 +171,49 @@ mm_malloc(size_t size)
 	size_t extendsize; /* Amount to extend heap if no fit */
 	void *bp;
 
-	printf("enters malloc\n");
+	//printf("enters malloc\n");
 
 	/* Ignore spurious requests. */
 	if (size == 0)
 		return (NULL);
 
 	/* Adjust block size to include overhead and alignment reqs. */
-	if (size <= DSIZE) // Note, must be 4 words to holds hdrs & ftrs
+	if (size <= DSIZE) {
 		asize = 2 * DSIZE;
-	else
+	} // Note, must be 4 words to holds hdrs & ftrs
+		
+	else {
 		asize = (ALIGNMENT * ((size + (ALIGNMENT - 1)) / ALIGNMENT)) + DSIZE;
+	}
+		
 
+	
 	/* Search the free list for a fit. */
 	if ((bp = find_fit(asize)) != NULL) {
 		//remove_freeblock(bp);
+		//printf("asize: %zu\n", asize );
 		place(bp, asize);
 		// Remove from free list
-		
+		//remove_freeblock(bp);
 		return (bp);
 	}
 
 	/* No fit found.  Get more memory and place the block. */
 	
 	//Try coalescing here first? just a thought (w/ deffered coalescing) during 
-	//segragated explicit 
+	//segragated explicit  
+
+	//Attempts to extend the heap 
 	extendsize = MAX(asize, CHUNKSIZE);
-	if ((bp = extend_heap(extendsize / WSIZE)) == NULL)  
+	if ((bp = extend_heap(extendsize / WSIZE)) == NULL) {
 		return (NULL);
-	//remove_freeblock(bp);
+	}
+		
+	
+	//printf("calls extend heap\n");
 	place(bp, asize);
 	// Remove from free list
+	//remove_freeblock(bp);
 	
 	return (bp);
 } 
@@ -217,11 +229,13 @@ void
 mm_free(void *bp)
 {
 	size_t size;
-	void *blockP;
+	
 
 	/* Ignore spurious requests. */
-	if (bp == NULL)
+	if (bp == NULL) {
 		return;
+	}
+		
 
 	//Edit so just frees the block (can do coalescing later?)
 	/* Free and coalesce the block. */
@@ -230,8 +244,7 @@ mm_free(void *bp)
 	PUT(FTRP(bp), PACK(size, 0));
 	
 	//Add block back into freelist
-	blockP = coalesce(bp);
-	insert_freeblock(blockP, dummy_head);
+	coalesce(bp);
 }
 
 /*
@@ -262,21 +275,27 @@ mm_realloc(void *ptr, size_t size)
 	}
 
 	/* If oldptr is NULL, then this is just malloc. */
-	if (ptr == NULL)
+	if (ptr == NULL) {
 		return (mm_malloc(size));
+	}
+		
 
 	newptr = mm_malloc(size);
 
 	/* If realloc() fails, the original block is left untouched.  */
-	if (newptr == NULL)
+	if (newptr == NULL) {
 		return (NULL);
+	}
+		
 
 	//Don't copy if possible - really expensive operation 
 
 	/* Copy just the old data, not the old header and footer. */
 	oldsize = GET_SIZE(HDRP(ptr)) - DSIZE;
-	if (size < oldsize)
+	if (size < oldsize) {
 		oldsize = size;
+	}
+		
 	memcpy(newptr, ptr, oldsize);
 
 	/* Free the old block. */
@@ -295,8 +314,8 @@ mm_realloc(void *ptr, size_t size)
  *   "bp" is the address of a newly freed block.
  *
  * Effects:
- *   Perform boundary tag coalescing.  Returns the address of the coalesced
- *   block.
+ *   Perform boundary tag coalescing. Returns the address of the coalesced
+ *   block after inserting it into the freelist.
  */
 static void *
 coalesce(void *bp) 
@@ -305,31 +324,44 @@ coalesce(void *bp)
 	bool prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
 	bool next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
 
-	if (prev_alloc && next_alloc) {                 /* Case 1 */
+	if (prev_alloc && next_alloc) {       /* Case 1 */
+		insert_freeblock(bp, dummy_head);
 		return (bp);
-	} else if (prev_alloc && !next_alloc) {         /* Case 2 - block after free */
+	} else if (prev_alloc && !next_alloc) {  /* Case 2 - block after free */
 		size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
+		//Removes block after bp from freelist.
+		remove_freeblock(NEXT_BLKP(bp));
+		
 		PUT(HDRP(bp), PACK(size, 0));
 		PUT(FTRP(bp), PACK(size, 0));
-		//removes block after bp from freelist 
-		remove_freeblock(NEXT_BLKP(bp));
+		
+		//Inserts coalesced block into freelist.
+		insert_freeblock(bp, dummy_head);
 
-	} else if (!prev_alloc && next_alloc) {         /* Case 3 - block before free */
+	} else if (!prev_alloc && next_alloc) {   /* Case 3 - block before free */
 		size += GET_SIZE(HDRP(PREV_BLKP(bp)));
+		//remove old block before bp from freelist.
+		remove_freeblock(PREV_BLKP(bp));
+
 		PUT(FTRP(bp), PACK(size, 0));
 		PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
+		//Move the bp pointer to the previous bp
 		bp = PREV_BLKP(bp);
-		//removes bp's block from freelist 
-		remove_freeblock(bp);
-	} else {                                        /* Case 4 - both before, after free*/
+		//Insert into the freelist. 
+		insert_freeblock(bp, dummy_head);
+	} else { /* Case 4 - both before, after free*/
+		//remove both old block, block after bp from freelist
+		remove_freeblock(NEXT_BLKP(bp));
+		remove_freeblock(PREV_BLKP(bp));                                   
 		size += GET_SIZE(HDRP(PREV_BLKP(bp))) + 
 		    GET_SIZE(FTRP(NEXT_BLKP(bp)));
 		PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
 		PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
-		bp = PREV_BLKP(bp);
-		//remove both bp, block after bp from freelist
-		remove_freeblock(NEXT_BLKP(bp));
-		remove_freeblock(bp);
+		
+		//Move the bp pointer to the previous bp 
+		bp = PREV_BLKP(bp); 
+		//Insert into the freelist. 
+		insert_freeblock(bp, dummy_head);
 	}
 	return (bp);
 }
@@ -349,8 +381,10 @@ extend_heap(size_t words)
 
 	/* Allocate an even number of words to maintain alignment. */
 	size = (words % 2) ? (words + 1) * WSIZE : words * WSIZE;
-	if ((bp = mem_sbrk(size)) == (void *)-1)  
+	if ((bp = mem_sbrk(size)) == (void *)-1) {
 		return (NULL);
+	}
+		
 
 	/* Initialize free block header/footer and the epilogue header. */
 	PUT(HDRP(bp), PACK(size, 0));         /* Free block header */
@@ -373,7 +407,8 @@ static void *
 find_fit(size_t asize)
 {
 	void *bp;
-
+	//printf("enters find_fit\n");
+	
 	/*Change: search through free list */
 	
 	//bp2->next
@@ -391,9 +426,12 @@ find_fit(size_t asize)
 	while (((struct pointer_data *)bp) != dummy_head) {
 		//printf("bp: %lu\n", *(long *)bp);
 		//printf("hp before: %lu\n", *((long *)(heap_listp - (3*WSIZE))));
-		if (asize <= GET_SIZE(HDRP(bp)))
-			printf("FOUND FIT\n");
+		if (asize <= GET_SIZE(HDRP(bp))) {
+			// printf("space needed: %zu     block size: %zu\n", asize, GET_SIZE(HDRP(bp)));
+			// printf("FOUND FIT\n");
 			return (bp);
+		}
+			
 		bp = ((struct pointer_data *)bp)->next;
 	}
 	/* No fit was found. */
@@ -413,9 +451,9 @@ static void
 place(void *bp, size_t asize)
 {
 	size_t csize = GET_SIZE(HDRP(bp));   
-
-	printf("entered place\n");
-
+	
+	// printf("entered place\n");
+	// printf("block size: %zu\n", csize);
 	if ((csize - asize) >= (2 * DSIZE)) { // Large enough to split
 		PUT(HDRP(bp), PACK(asize, 1));
 		PUT(FTRP(bp), PACK(asize, 1));
@@ -423,7 +461,9 @@ place(void *bp, size_t asize)
 		bp = NEXT_BLKP(bp);
 		PUT(HDRP(bp), PACK(csize - asize, 0));
 		PUT(FTRP(bp), PACK(csize - asize, 0));
-		insert_freeblock(bp, dummy_head);
+		// printf("split block size: %zu\n", csize - asize);
+		// printf("split block adr %p\n", bp);
+		coalesce(bp);
 	} else {
 		PUT(HDRP(bp), PACK(csize, 1));
 		PUT(FTRP(bp), PACK(csize, 1));
@@ -454,21 +494,23 @@ insert_freeblock(void *bp,  void *target)
 	// ((struct pointer_data *)&bp)->next = ((struct pointer_data *)&target)->next;
 	// ((struct pointer_data *)&bp)->prev = target;
 	// ((struct pointer_data *)&target)->next = bp;
-	printf("target adr before: %p\n", &targetNode);
-	printf("target next before: %p\n", targetNode->next);
-	printf("target prev before: %p\n", targetNode->prev);
-	printf("bp next before: %p\n", bpNode->next);
-	printf("bp prev before: %p\n", bpNode->prev); 
+	// printf("insert freeblock: \n");
+	// printf("target adr : %p\n", targetNode);
+	// printf("target next before: %p\n", targetNode->next);
+	// printf("target prev before: %p\n", targetNode->prev);
+	// printf("bp next before: %p\n", bpNode->next);
+	// printf("bp prev before: %p\n", bpNode->prev); 
 
 	targetNode->next->prev = bpNode;
 	bpNode->next = targetNode->next;
 	bpNode->prev = targetNode;
 	targetNode->next = bpNode;
 
-	printf("target next after: %p\n", targetNode->next);
-	printf("target prev after: %p\n", targetNode->prev);
-	printf("bp next after: %p\n", bpNode->next);
-	printf("bp prev after: %p\n", bpNode->prev);
+	// printf("bp adr: %p\n", bpNode);
+	// printf("target next after: %p\n", targetNode->next);
+	// printf("target prev after: %p\n", targetNode->prev);
+	// printf("bp next after: %p\n", bpNode->next);
+	// printf("bp prev after: %p\n", bpNode->prev);
 
 
 }
@@ -481,9 +523,9 @@ insert_freeblock(void *bp,  void *target)
 static void 
 remove_freeblock(void *bp)
 {
+	// printf("remove freeblock: %p \n", bp);
 	//Casts to struct pointer_data * to use next and prev from the struct.
 	struct pointer_data *bpNode;
-	
 	bpNode = (struct pointer_data *)bp;
 	// ((struct pointer_data *)
 	//     &(((struct pointer_data *)&bp)->prev))->next = ((struct pointer_data *)&bp)->next;
