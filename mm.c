@@ -50,6 +50,8 @@ typedef struct pointer_data *Pointers;
 #define DSIZE      (2 * WSIZE)    /* Doubleword size (bytes) */
 #define CHUNKSIZE  (1 << 12)      /* Extend heap by this amount (bytes) */
 #define ALIGNMENT  (sizeof(char) * 8)		  /* Byte alignment size (bytes) */
+#define NUM_BUCKETS 
+
 
 #define MAX(x, y)  ((x) > (y) ? (x) : (y))  
 
@@ -75,7 +77,7 @@ typedef struct pointer_data *Pointers;
 /* Global variables: */
 static char *heap_listp; /* Pointer to first block */  
 
-static struct pointer_data *dummy_head;
+static struct pointer_data *dummy_head; /* Pointer to dummy head list*/
 
 /* Function prototypes for internal helper routines: */
 static void *coalesce(void *bp);
@@ -91,6 +93,17 @@ static void remove_freeblock(void *bp);
 static void checkblock(void *bp);
 static void checkheap(bool verbose);
 static void printblock(void *bp); 
+
+static int
+round_next_pow2(int num)
+{
+	int n;
+	n = 1;
+	while (n < num) {
+		n *= 2;
+	}
+	return (n);
+}
 
 /* 
  * Requires:
@@ -114,6 +127,8 @@ mm_init(void)
 	//MORE HEADS 
 
 	dummy_head = (struct pointer_data *)mem_heap_lo();
+
+
 	//printf("dummy head: %p\n", dummy_head);
 	
 	// Put the address of the next node
@@ -181,14 +196,14 @@ mm_malloc(size_t size)
 	/* Adjust block size to include overhead and alignment reqs. */
 	if (size <= DSIZE) {
 		asize = 2 * DSIZE;
-	} // Note, must be 4 words to holds hdrs & ftrs
-		
+	} else if (size < 512) {
+		asize = round_next_pow2(size);
+		asize = (ALIGNMENT * ((asize + (ALIGNMENT - 1)) / ALIGNMENT)) + DSIZE;
+	}// Note, must be 4 words to holds hdrs & ftrs
 	else {
 		asize = (ALIGNMENT * ((size + (ALIGNMENT - 1)) / ALIGNMENT)) + DSIZE;
 	}
-		
 
-	
 	/* Search the free list for a fit. */
 	if ((bp = find_fit(asize)) != NULL) {
 		//remove_freeblock(bp);
