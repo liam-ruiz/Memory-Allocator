@@ -40,8 +40,8 @@ team_t team = {
 
 //Structure for doubly-linked list 
 struct pointer_data {
-	void *next;
-	void *prev;
+	struct pointer_data *next;
+	struct pointer_data *prev;
 };
 typedef struct pointer_data *Pointers;
 
@@ -114,9 +114,9 @@ mm_init(void)
 	printf("dummy head: %p\n", dummy_head);
 	
 	// Put the address of the next node
-	// PUT(heap_listp, (long)&heap_listp);
+	//PUT(heap_listp, (long)&heap_listp);
 	// // Put the address of the prev node
-	// PUT(heap_listp + (1 * WSIZE), (long)&heap_listp);
+	//PUT(heap_listp + (1 * WSIZE), (long)&heap_listp);
 	// Put prologue hdr, ftr, and epilogue hdr
 	PUT(heap_listp + (2 * WSIZE), PACK(DSIZE, 1)); /* Prologue header */ 
 	PUT(heap_listp + (3 * WSIZE), PACK(DSIZE, 1)); /* Prologue footer */ 
@@ -140,8 +140,8 @@ mm_init(void)
 		return (-1);
 	
 
-	dummy_head->next = bp;
-	dummy_head->prev = bp;
+	dummy_head->next = dummy_head;
+	dummy_head->prev = dummy_head;
 	//insert the CHUNKSIZE block into the dummy head (explicit list)
 	insert_freeblock(bp, dummy_head);
 	printf("hp: %p\n", heap_listp);
@@ -185,9 +185,10 @@ mm_malloc(size_t size)
 
 	/* Search the free list for a fit. */
 	if ((bp = find_fit(asize)) != NULL) {
+		//remove_freeblock(bp);
 		place(bp, asize);
 		// Remove from free list
-		remove_freeblock(bp);
+		
 		return (bp);
 	}
 
@@ -198,9 +199,10 @@ mm_malloc(size_t size)
 	extendsize = MAX(asize, CHUNKSIZE);
 	if ((bp = extend_heap(extendsize / WSIZE)) == NULL)  
 		return (NULL);
+	//remove_freeblock(bp);
 	place(bp, asize);
 	// Remove from free list
-	remove_freeblock(bp);
+	
 	return (bp);
 } 
 
@@ -229,7 +231,7 @@ mm_free(void *bp)
 	
 	//Add block back into freelist
 	blockP = coalesce(bp);
-	insert_freeblock(blockP, (heap_listp - (3 * WSIZE)));
+	insert_freeblock(blockP, dummy_head);
 }
 
 /*
@@ -383,15 +385,16 @@ find_fit(size_t asize)
 	// }
 	
 	// Assign to dummy_head->next
-	bp = ((struct pointer_data *)(heap_listp - (3 * WSIZE)))->next;
+	bp = dummy_head->next;
 	//printf("bp before: %lu\n", *((long *)bp));
 	//printf("hp before: %lu\n", *((long *)(heap_listp - (3*WSIZE))));
-	while (((char *)bp) != (heap_listp - (3 * WSIZE))) {
+	while (((struct pointer_data *)bp) != dummy_head) {
 		//printf("bp: %lu\n", *(long *)bp);
 		//printf("hp before: %lu\n", *((long *)(heap_listp - (3*WSIZE))));
 		if (asize <= GET_SIZE(HDRP(bp)))
+			printf("FOUND FIT\n");
 			return (bp);
-		bp = ((struct pointer_data *)&bp)->next;
+		bp = ((struct pointer_data *)bp)->next;
 	}
 	/* No fit was found. */
 	return (NULL);
@@ -411,18 +414,20 @@ place(void *bp, size_t asize)
 {
 	size_t csize = GET_SIZE(HDRP(bp));   
 
-	//TODO: EDIT FREELIST (if larger and needs to split)
+	printf("entered place\n");
 
 	if ((csize - asize) >= (2 * DSIZE)) { // Large enough to split
 		PUT(HDRP(bp), PACK(asize, 1));
 		PUT(FTRP(bp), PACK(asize, 1));
+		remove_freeblock(bp);
 		bp = NEXT_BLKP(bp);
 		PUT(HDRP(bp), PACK(csize - asize, 0));
 		PUT(FTRP(bp), PACK(csize - asize, 0));
-		insert_freeblock(bp, (heap_listp - (3 * WSIZE)));
+		insert_freeblock(bp, dummy_head);
 	} else {
 		PUT(HDRP(bp), PACK(csize, 1));
 		PUT(FTRP(bp), PACK(csize, 1));
+		remove_freeblock(bp);
 	}
 
 }
@@ -449,12 +454,21 @@ insert_freeblock(void *bp,  void *target)
 	// ((struct pointer_data *)&bp)->next = ((struct pointer_data *)&target)->next;
 	// ((struct pointer_data *)&bp)->prev = target;
 	// ((struct pointer_data *)&target)->next = bp;
-	printf("")
+	printf("target adr before: %p\n", &targetNode);
+	printf("target next before: %p\n", targetNode->next);
+	printf("target prev before: %p\n", targetNode->prev);
+	printf("bp next before: %p\n", bpNode->next);
+	printf("bp prev before: %p\n", bpNode->prev); 
 
-	((struct pointer_data *)(targetNode->next))->prev = bpNode;
+	targetNode->next->prev = bpNode;
 	bpNode->next = targetNode->next;
 	bpNode->prev = targetNode;
 	targetNode->next = bpNode;
+
+	printf("target next after: %p\n", targetNode->next);
+	printf("target prev after: %p\n", targetNode->prev);
+	printf("bp next after: %p\n", bpNode->next);
+	printf("bp prev after: %p\n", bpNode->prev);
 
 
 }
@@ -476,8 +490,8 @@ remove_freeblock(void *bp)
 	// ((struct pointer_data *)
 	//     &(((struct pointer_data *)&bp)->next))->prev = ((struct pointer_data *)&bp)->prev;
 	
-	((struct pointer_data *)(bpNode->prev))->next = bpNode->next;
-	((struct pointer_data *)(bpNode->next))->prev = bpNode->prev;
+	(bpNode->prev)->next = bpNode->next;
+	(bpNode->next)->prev = bpNode->prev;
 }
 
 //Check that everything in freelist is actually free in checking routine 
