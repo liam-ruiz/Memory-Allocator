@@ -111,6 +111,7 @@ mm_init(void)
 		return (-1);
 	}
 	
+	//MORE HEADS 
 
 	dummy_head = (struct pointer_data *)mem_heap_lo();
 	//printf("dummy head: %p\n", dummy_head);
@@ -370,6 +371,8 @@ coalesce(void *bp)
 	bool prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
 	bool next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
 
+	
+
 	if (prev_alloc && next_alloc) {       /* Case 1 */
 		insert_freeblock(bp, dummy_head);
 		return (bp);
@@ -465,6 +468,9 @@ find_fit(size_t asize)
 	// 		return (bp);
 	// }
 	
+	//CHANGE: FIND THE BUCKET Where it belongs 
+
+
 	// Assign to dummy_head->next
 	bp = dummy_head->next;
 	//printf("bp before: %lu\n", *((long *)bp));
@@ -549,15 +555,15 @@ insert_freeblock(void *bp,  void *target)
 
 
 	//FOR POSTERITY:
-	// targetNode->next->prev = bpNode;
-	// bpNode->next = targetNode->next;
-	// bpNode->prev = targetNode;
-	// targetNode->next = bpNode;
+	targetNode->next->prev = bpNode;
+	bpNode->next = targetNode->next;
+	bpNode->prev = targetNode;
+	targetNode->next = bpNode;
 
-	targetNode->prev->next = bpNode;
-	bpNode->next = targetNode;
-	bpNode->prev = targetNode->prev;
-	targetNode->prev = bpNode;
+	// targetNode->prev->next = bpNode;
+	// bpNode->next = targetNode;
+	// bpNode->prev = targetNode->prev;
+	// targetNode->prev = bpNode;
 
 	// printf("bp adr: %p\n", bpNode);
 	// printf("target next after: %p\n", targetNode->next);
