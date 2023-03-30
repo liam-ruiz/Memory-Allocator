@@ -242,6 +242,7 @@ mm_free(void *bp)
 	size = GET_SIZE(HDRP(bp));
 	PUT(HDRP(bp), PACK(size, 0));
 	PUT(FTRP(bp), PACK(size, 0));
+
 	
 	//Add block back into freelist
 	coalesce(bp);
@@ -263,8 +264,10 @@ mm_free(void *bp)
 void *
 mm_realloc(void *ptr, size_t size)
 {
-	size_t oldsize;
+	size_t oldsize, asize, freeblock_size, splitblock_size;
 	void *newptr;
+	
+
 
 	// TODO: fix for explicit list
 
@@ -278,29 +281,72 @@ mm_realloc(void *ptr, size_t size)
 	if (ptr == NULL) {
 		return (mm_malloc(size));
 	}
-		
 
-	newptr = mm_malloc(size);
+	/* Adjust block size to include overhead and alignment reqs. */
+	if (size <= DSIZE) {
+		asize = 2 * DSIZE;
+	} // Note, must be 4 words to holds hdrs & ftrs
+		
+	else {
+		asize = (ALIGNMENT * ((size + (ALIGNMENT - 1)) / ALIGNMENT)) + DSIZE;
+	}
+
+	/* If size <= old size, return original block*/
+	if (asize <= GET_SIZE(HDRP(ptr)) - DSIZE) {
+		return (ptr);
+	}
+
+	// TODO: possibly also take into account ratio?
+	/* If next block free & size <= old size + size of free block, return original block */
+	if (!GET_ALLOC(HDRP(NEXT_BLKP(ptr))) && asize <= GET_SIZE(HDRP(ptr)) + GET_SIZE(HDRP(NEXT_BLKP(ptr))) - DSIZE) {
+		oldsize = GET_SIZE(HDRP(ptr));
+		freeblock_size = GET_SIZE(HDRP(NEXT_BLKP(ptr)));
+
+		//check to see if remainder large enough to split, add to free list 
+		if (oldsize + freeblock_size >= asize + (2 * DSIZE)) {
+			// remove next free block from free list
+			remove_freeblock(NEXT_BLKP(ptr));
+			// update allocated block size
+			PUT(HDRP(ptr), PACK(asize, 1));
+			PUT(FTRP(ptr), PACK(asize, 1));
+			// update split block size
+			splitblock_size = oldsize + freeblock_size - asize;
+			PUT(HDRP(NEXT_BLKP(ptr)), PACK(splitblock_size, 0));
+			PUT(FTRP(NEXT_BLKP(ptr)), PACK(splitblock_size, 0));
+			// add new split block to free list
+			insert_freeblock(NEXT_BLKP(ptr), dummy_head);
+
+		} else {
+			remove_freeblock(NEXT_BLKP(ptr));
+			PUT(HDRP(ptr), PACK(oldsize + freeblock_size, 1));
+			PUT(FTRP(ptr), PACK(oldsize + freeblock_size, 1));
+		}
+		return (ptr);
+	}
+	
+	/* Otherwise, malloc enough space plus extra and copy*/
+	
+	asize = (int)(1.3 * (double)(asize));
+	newptr = mm_malloc(asize);
 
 	/* If realloc() fails, the original block is left untouched.  */
 	if (newptr == NULL) {
 		return (NULL);
 	}
 		
-
-	//Don't copy if possible - really expensive operation 
-
 	/* Copy just the old data, not the old header and footer. */
 	oldsize = GET_SIZE(HDRP(ptr)) - DSIZE;
-	if (size < oldsize) {
-		oldsize = size;
-	}
+	
 		
 	memcpy(newptr, ptr, oldsize);
 
 	/* Free the old block. */
 	mm_free(ptr);
 
+
+	// get rid of warnings
+	(void)freeblock_size;
+	(void)splitblock_size;
 	return (newptr);
 }
 
@@ -501,10 +547,17 @@ insert_freeblock(void *bp,  void *target)
 	// printf("bp next before: %p\n", bpNode->next);
 	// printf("bp prev before: %p\n", bpNode->prev); 
 
-	targetNode->next->prev = bpNode;
-	bpNode->next = targetNode->next;
-	bpNode->prev = targetNode;
-	targetNode->next = bpNode;
+
+	//FOR POSTERITY:
+	// targetNode->next->prev = bpNode;
+	// bpNode->next = targetNode->next;
+	// bpNode->prev = targetNode;
+	// targetNode->next = bpNode;
+
+	targetNode->prev->next = bpNode;
+	bpNode->next = targetNode;
+	bpNode->prev = targetNode->prev;
+	targetNode->prev = bpNode;
 
 	// printf("bp adr: %p\n", bpNode);
 	// printf("target next after: %p\n", targetNode->next);
