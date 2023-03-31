@@ -51,7 +51,7 @@ struct pointer_data {
 #define DSIZE      (2 * WSIZE)    /* Doubleword size (bytes) */
 #define CHUNKSIZE  (1 << 12)      /* Extend heap by this amount (bytes) */
 #define ALIGNMENT  (sizeof(char) * 8)		  /* Byte alignment size (bytes) */
-#define NUM_BUCKETS (25)	/* Num of different free block sizes*/
+#define NUM_BUCKETS (16)	/* Num of different free block sizes*/
 
 
 #define MAX(x, y)  ((x) > (y) ? (x) : (y))  
@@ -76,12 +76,18 @@ struct pointer_data {
 #define PREV_BLKP(bp)  ((char *)(bp) - GET_SIZE(((char *)(bp) - DSIZE)))
 
 /* Global variables: */
-static char *heap_listp; /* Pointer to first block */  
+static char	*heap_listp; /* Pointer to first block */  
 
-static struct pointer_data *dummy_head; /* Pointer to dummy head list*/
+static struct	pointer_data *dummy_head; /* Pointer to dummy head list*/
+
+// static int 	block_count; /* count of blocks of same size in a row */
+
+// static void 	*prev_block; /* pointer to block of last size */
+
+// static int	prev_blocksize; /* size of last allocated block */
 
 /* Function prototypes for internal helper routines: */
-// static void *coalesce(void *bp);
+//static void *coalesce(void *bp);
 static void *extend_heap(size_t words);
 static void *find_fit(size_t asize);
 static void place(void *bp, size_t asize);
@@ -166,7 +172,8 @@ mm_init(void)
 		//printf("addr of bucket %d : %p\n", i, &(dummy_head[i]));
 
 	}
-
+	// block_count = 0;
+	// prev_blocksize = 0;
 
 	//printf("dummy head: %p\n", dummy_head);
 	
@@ -241,6 +248,13 @@ mm_malloc(size_t size)
 	if (size == 0)
 		return (NULL);
 
+	// check to try to speed up if many blocks are encountered sequentially
+	// if (size == (size_t)prev_blocksize) {
+	// 	block_count++; 
+	// } else {
+	// 	prev_blocksize = size;
+	// 	block_count = 1;
+	// }
 	/* Adjust block size to include overhead and alignment reqs. */
 	if (size <= DSIZE) {
 		asize = 2 * DSIZE;
@@ -441,8 +455,8 @@ mm_realloc(void *ptr, size_t size)
 // 	bool next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
 
 	
-	
-// 	if ((prev_alloc && next_alloc) || size > (1 << 20)) {       /* Case 1 */
+// 	//|| size > (1 << 8)
+// 	if ((prev_alloc && next_alloc) ) {       /* Case 1 */
 // 		//printf("case 1\n");
 // 		insert_freeblock(bp);
 // 	} else if (prev_alloc && !next_alloc) {  /* Case 2 - block after free */
@@ -488,13 +502,13 @@ mm_realloc(void *ptr, size_t size)
 // 	return (bp);
 // }
 
-/* 
- * Requires:
- *   None.
- *
- * Effects:
- *   Extend the heap with a free block and return that block's address.
- */
+// /* 
+//  * Requires:
+//  *   None.
+//  *
+//  * Effects:
+//  *   Extend the heap with a free block and return that block's address.
+//  */
 static void *
 extend_heap(size_t words) 
 {
@@ -537,7 +551,7 @@ static void *
 find_fit(size_t asize)
 {
 	void *bp;
-	int i;
+	int i, bucket;
 
 	//printf("enters find_fit\n");
 	
@@ -550,48 +564,71 @@ find_fit(size_t asize)
 	// 	if (!GET_ALLOC(HDRP(bp)) && asize <= GET_SIZE(HDRP(bp)))
 	// 		return (bp);
 	// }
+	// if (block_count > 10) {
+	// 	bp = prev_block;
+	// 	bucket = get_next_pow2(GET_SIZE(HDRP(bp)));
+	// 	for (i = bucket; i < NUM_BUCKETS; i++) {
+	// 		for (bp = ((struct pointer_data *)bp)->next; bp != prev_block;
+	// 		    bp = ((struct pointer_data *)bp)->next) {
+	// 			if (asize <= GET_SIZE(HDRP(bp))) {
+	// 			// printf("space needed: %zu     block size: %zu\n", asize, GET_SIZE(HDRP(bp)));
+	// 			//printf("FOUND FIT\n");
+	// 				prev_block = ((struct pointer_data *)bp)->next;
+	// 				return (bp);
+	// 			}
+	// 		}
+	// 	}
+
+	// } else {
+		bucket = get_next_pow2(asize) - 1;
+		if (bucket >= NUM_BUCKETS) {
+			bucket = NUM_BUCKETS - 1;
+		}
+		
+		// Go through from smallest to largest bucket
+		for (i = bucket; i < NUM_BUCKETS; i++) {
+			// go through the free list of the bucket
+			//bp = (dummy_head[i]).next;
+			//while (bp != &(dummy_head[i])) {
+
+			for (bp = (dummy_head[i]).next; bp != &(dummy_head[i]); 
+			bp = ((struct pointer_data *)bp)->next) {
+				
+				if (asize <= GET_SIZE(HDRP(bp))) {
+					// printf("space needed: %zu     block size: %zu\n", asize, GET_SIZE(HDRP(bp)));
+					//printf("FOUND FIT\n");
+					//prev_block = ((struct pointer_data *)bp)->next;
+					return (bp);
+				} //else { // else statement for deferred coalescing
+				// 	coalesce(bp);
+				// }
+
+				//bp = ((struct pointer_data *)bp)->next;
+			}
+		}
+
+		// // Assign to dummy_head->next
+		// bp = dummy_head->next;
+		// //printf("bp before: %lu\n", *((long *)bp));
+		// //printf("hp before: %lu\n", *((long *)(heap_listp - (3*WSIZE))));
+		// while (((struct pointer_data *)bp) != dummy_head) {
+		// 	//printf("bp: %lu\n", *(long *)bp);
+		// 	//printf("hp before: %lu\n", *((long *)(heap_listp - (3*WSIZE))));
+		// 	if (asize <= GET_SIZE(HDRP(bp))) {
+		// 		// printf("space needed: %zu     block size: %zu\n", asize, GET_SIZE(HDRP(bp)));
+		// 		// printf("FOUND FIT\n");
+		// 		return (bp);
+		// 	}
+				
+		// 	bp = ((struct pointer_data *)bp)->next;
+		// }
+		/* No fit was found. */
+		//printf("didn't find fit\n");
+		
 	
+	return (NULL);
 	//CHANGE: FIND THE BUCKET Where it belongs 
 	
-	// Go through from smallest to largest bucket
-	for (i = get_next_pow2(asize) - 1; i < NUM_BUCKETS; i++) {
-		// go through the free list of the bucket
-		//bp = (dummy_head[i]).next;
-		//while (bp != &(dummy_head[i])) {
-
-		for (bp = (dummy_head[i]).next; bp != &(dummy_head[i]); 
-		    bp = ((struct pointer_data *)bp)->next) {
-			
-			if (asize <= GET_SIZE(HDRP(bp))) {
-				// printf("space needed: %zu     block size: %zu\n", asize, GET_SIZE(HDRP(bp)));
-				//printf("FOUND FIT\n");
-				return (bp);
-			} //else { // else statement for deferred coalescing
-			// 	coalesce(bp);
-			// }
-
-			//bp = ((struct pointer_data *)bp)->next;
-		}
-	}
-
-	// // Assign to dummy_head->next
-	// bp = dummy_head->next;
-	// //printf("bp before: %lu\n", *((long *)bp));
-	// //printf("hp before: %lu\n", *((long *)(heap_listp - (3*WSIZE))));
-	// while (((struct pointer_data *)bp) != dummy_head) {
-	// 	//printf("bp: %lu\n", *(long *)bp);
-	// 	//printf("hp before: %lu\n", *((long *)(heap_listp - (3*WSIZE))));
-	// 	if (asize <= GET_SIZE(HDRP(bp))) {
-	// 		// printf("space needed: %zu     block size: %zu\n", asize, GET_SIZE(HDRP(bp)));
-	// 		// printf("FOUND FIT\n");
-	// 		return (bp);
-	// 	}
-			
-	// 	bp = ((struct pointer_data *)bp)->next;
-	// }
-	/* No fit was found. */
-	//printf("didn't find fit\n");
-	return (NULL);
 }
 
 /* 
@@ -607,17 +644,17 @@ static void
 place(void *bp, size_t asize)
 {
 	//printf("enters place\n");
-	size_t csize, tempsize;
+	size_t csize;//, tempsize;
 	csize = GET_SIZE(HDRP(bp));   
-	tempsize = (csize -  ((1.5) * asize));
-	tempsize = (ALIGNMENT * ((tempsize + (ALIGNMENT - 1)) / ALIGNMENT)) + DSIZE;
+	// tempsize = (csize -  ((1.5) * asize));
+	// tempsize = (ALIGNMENT * ((tempsize + (ALIGNMENT - 1)) / ALIGNMENT)) + DSIZE;
 	
 	// printf("entered place\n");
 	// printf("block size: %zu\n", csize);
 	
 	//Checks if remnant block is large enough to justify splitting. 
-	if (csize > 2 * asize &&
-	    tempsize >= (2 * DSIZE)) { // Large enough to split
+	// && tempsize >= (2 * DSIZE)
+	if (csize > 2 * asize ) { // Large enough to split
 		PUT(HDRP(bp), PACK(asize, 1));
 		PUT(FTRP(bp), PACK(asize, 1));
 		remove_freeblock(bp);
@@ -647,6 +684,9 @@ insert_freeblock(void *bp)
 	int size, bucket;
 	size = GET_SIZE(HDRP(bp));
 	bucket = get_next_pow2(size) - 1;
+	if (bucket >= NUM_BUCKETS) {
+		bucket = NUM_BUCKETS - 1;
+	}
 	//printf("asize:     %d    bucket: %d\n", size, bucket);
 	insert_freelist(bp, &(dummy_head[bucket]));
 }
