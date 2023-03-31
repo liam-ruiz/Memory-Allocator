@@ -5,9 +5,29 @@ Laim Ruiz-Steblein ldr3 Jared Duran jad21
 
 DESIGN DESCRIPTION
 
-<Replace with an English description of your submission's design.> 
+Our design is based on segregated free lists. Each free list uses an explicit 
+free list that is circular and doubly linked. There are 9 "buckets", or free 
+lists segregated by size. The first bucket corresponds to all free blocks under 
+2^5 (32), and each subsequent bucket corresponds to the next power of 2 
+(2^6, 2^7, 2^8, ...). The final bucket corresponds to all blocks greater than 
+2^12 (4096). Our design finds the first block that fits the size requested in 
+the corresponding bucket. Failing that, it will move up to the next size bucket.
+If no blocks of sufficient size are abailable, more memory is requested. 
+
+Upon freeing a block, that newly freed block is inserted at the end of the 
+corresponding bucket. This design splits free blocks when place is called
+and the remainder block is large enough (at least twice the size of the 
+requested memory). This design coalesces every time a block is freed.
 
 checkheap() DESCRIPTION
 
-<Replace with an English description of your submission's heap consistency
- checker.>
+The main structure of the checkheap is based on the provided checkheap 
+which iterates through all blocks in the memory.There is an additional 
+boolean flag that indicates if checkfreelist is to be called. checkfreelist 
+iterates through the all free lists ("buckets") and checks that all blocks 
+are unallocated. Otherwise, all additional checks are done in the checkblock 
+function. Every block is checked for overlap with the next block. Additional 
+checks are for free blocks: it checks that it hasn't escaped coalesceing, 
+is actually in the free list, points to valid free blocks, and has pointers
+to valid heap addresses. 
+
