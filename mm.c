@@ -125,20 +125,45 @@ round_next_pow2(int x)
 
 static int 
 get_next_pow2(int x) {
-    x--;
-    x |= x >> 1;
-    x |= x >> 2;
-    x |= x >> 4;
-    x |= x >> 8;
-    x |= x >> 16; // Assumes 32-bit integers
-    x++;
-    return log2(x);
+	x--;
+	x |= x >> 1;
+	x |= x >> 2;
+	x |= x >> 4;
+	x |= x >> 8;
+	x |= x >> 16; // Assumes 32-bit integers
+	x++;
+	return log2(x);
 }
 
-// static int 
-// get_next_pow2_second(int x) {
-//     return log2(pow(2, ceil(log2(x))));
-// }
+static int 
+get_next_pow2_second(int x) {
+	if (size <= 32) {
+		return (0);
+	}
+	if (size <= 64) {
+		return (1);
+	}
+	if (size <= 128) {
+		return (2);
+	}
+	if (size <= 256) {
+		return (3);
+	}
+	if (size <= 516) {
+		return (4);
+	}
+	if (size <= 1024) {
+		return (5);
+	}
+	if (size <= 2048) {
+		return (6);
+	}
+	if (size <= 4096) {
+		return (7);
+	}
+	return (8)
+    //return log2(pow(2, ceil(log2(x))));
+}
 
 
 /* 
@@ -786,9 +811,9 @@ remove_freeblock(void *bp)
  *   Perform a check on the block "bp".
  */
 static void
-checkblock(void *bp) 
+checkblock(void *bp)
 {
-	bool alloc = GET_ALLOC(bp); 
+	bool alloc = GET_ALLOC(HDRP(bp)); 
 
 	//Given checks of the block: 
 	if ((uintptr_t)bp % ALIGNMENT)
@@ -798,22 +823,24 @@ checkblock(void *bp)
 	
 	//Additional block checks: 
 
-	//Coalescing: 
-	if(!GET_ALLOC(PREV_BLKP(bp))) {
-		printf("Error: Previous block not coalesced\n");
-	}
-	if(!GET_ALLOC(NEXT_BLKP(bp))) {
-		printf("Error: Next block not coalesced\n");
-	}
+	
 	//If the block is free, check if in freelist and that pointers are in range
 	if(!alloc) {
+		/* Coalescing: (which we don't do)
+		if(!GET_ALLOC(PREV_BLKP(bp))) {
+			printf("Error: Previous block not coalesced\n");
+		}
+		if(!GET_ALLOC(NEXT_BLKP(bp))) {
+			printf("Error: Next block not coalesced\n");
+		}
+		*/
 		struct pointer_data *bpNode, *prevbp, *nextbp;
 		bpNode = (struct pointer_data *)bp;
 		prevbp = bpNode->prev; 
 		nextbp= bpNode->next;
 		//checks if uninitialized (the default)
 		if ((prevbp == NULL) || (nextbp == NULL)) {
-			printf("Error: bp %p not in list\n", bp);
+			printf("Error: free block %p not in free list\n", bp);
 		}
 		//checks pointers point to valid addresses
 		if (prevbp <= (struct pointer_data *)mem_heap_lo()) {
@@ -827,6 +854,16 @@ checkblock(void *bp)
 		}
 		if (nextbp >= (struct pointer_data *)mem_heap_hi()) {
 			printf("Error: bp %p next- %p high out of range\n", bp, nextbp);
+		}
+		// checks pointers point to valid free blocks
+		// check each not a dummy head and is free
+		if (!((prevbp >= mem_heap_lo() && prevbp < ((char *)mem_heap_lo()) 
+		    + (20 * DSIZE)) || !GET_ALLOC(HDRP(prevbp)))) {
+			printf("Error: prev doesn't point to free block\n");
+		}
+		if (!((nextbp >= mem_heap_lo() && nextbp < ((char *)mem_heap_lo()) 
+		    + (20 * DSIZE)) || !GET_ALLOC(HDRP(nextbp)))) {
+			printf("Error: nextbp doesn't point to free block\n");
 		}
 	} else {// Block is allocated, so check for overlap with next block 
 		if (NEXT_BLKP(bp) < FTRP(bp)) {
