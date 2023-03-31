@@ -95,7 +95,7 @@ static void printblock(void *bp);
 //static void checkfreelist(bool b);
 
 /* Helper functions*/
-static int round_next_pow2(int num);
+static int round_next_pow2(int x);
 static int get_next_pow2(int x);
 static void insert_freeblock(void *bp);
 static void remove_freeblock(void *bp);
@@ -105,14 +105,16 @@ static void insert_freelist(void *bp,  void *target);
 //static int num_init_calls = 0;
 
 static int
-round_next_pow2(int num)
+round_next_pow2(int x)
 {
-	int n;
-	n = 1;
-	while (n < num) {
-		n *= 2;
-	}
-	return (n);
+	x--;
+	x |= x >> 1;
+	x |= x >> 2;
+	x |= x >> 4;
+	x |= x >> 8;
+	x |= x >> 16; // Assumes 32-bit integers
+	x++;
+	return (x);
 }
 
 static int 
@@ -201,6 +203,7 @@ mm_init(void)
 	if ((bp = extend_heap(CHUNKSIZE / WSIZE)) == NULL) {
 		return (-1);
 	}
+	//insert_freeblock(bp);
 
 	//printf("addr of bp: %p\n", bp);
 		
@@ -305,7 +308,12 @@ mm_free(void *bp)
 	//Add block back into freelist
 	//printf("exits free\n");
 	//printf("free calls coalesce\n");
+
+	//non-deferred
 	coalesce(bp);
+
+	//deferred
+	//insert_freeblock(bp);
 }
 
 /*
@@ -386,7 +394,7 @@ mm_realloc(void *ptr, size_t size)
 	
 	/* Otherwise, malloc enough space plus extra and copy*/
 	
-	asize = (int)(1.3 * (double)(asize));
+	asize = (int)(2 * (double)(asize));
 	newptr = mm_malloc(asize);
 
 	/* If realloc() fails, the original block is left untouched.  */
@@ -508,7 +516,13 @@ extend_heap(size_t words)
 	/* Coalesce if the previous block was free. */
 	//printf("extend_heap calls coalesce\n");
 	//printf("exits extend heap");
-	return (coalesce(bp));
+
+	// non-deferred
+	// return (coalesce(bp));
+
+	//deferred
+	insert_freeblock(bp);
+	return (bp);
 }
 
 /*
@@ -523,7 +537,7 @@ static void *
 find_fit(size_t asize)
 {
 	void *bp;
-	int bucket, i;
+	int i;
 
 	//printf("enters find_fit\n");
 	
@@ -538,20 +552,25 @@ find_fit(size_t asize)
 	// }
 	
 	//CHANGE: FIND THE BUCKET Where it belongs 
-	bucket = get_next_pow2(asize) - 1;
+	
 	// Go through from smallest to largest bucket
-	for (i = bucket; i < NUM_BUCKETS; i++) {
+	for (i = get_next_pow2(asize) - 1; i < NUM_BUCKETS; i++) {
 		// go through the free list of the bucket
-		bp = (dummy_head[i]).next;
-		while (bp != &(dummy_head[i])) {
+		//bp = (dummy_head[i]).next;
+		//while (bp != &(dummy_head[i])) {
+
+		for (bp = (dummy_head[i]).next; bp != &(dummy_head[i]); 
+		    bp = ((struct pointer_data *)bp)->next) {
 			
 			if (asize <= GET_SIZE(HDRP(bp))) {
 				// printf("space needed: %zu     block size: %zu\n", asize, GET_SIZE(HDRP(bp)));
 				//printf("FOUND FIT\n");
 				return (bp);
-			}
+			} //else { // else statement for deferred coalescing
+			// 	coalesce(bp);
+			// }
 
-			bp = ((struct pointer_data *)bp)->next;
+			//bp = ((struct pointer_data *)bp)->next;
 		}
 	}
 
@@ -590,14 +609,14 @@ place(void *bp, size_t asize)
 	//printf("enters place\n");
 	size_t csize, tempsize;
 	csize = GET_SIZE(HDRP(bp));   
-	tempsize = (csize -  (ceil((1.5) * asize)));
+	tempsize = (csize -  ((1.5) * asize));
 	tempsize = (ALIGNMENT * ((tempsize + (ALIGNMENT - 1)) / ALIGNMENT)) + DSIZE;
 	
 	// printf("entered place\n");
 	// printf("block size: %zu\n", csize);
 	
 	//Checks if remnant block is large enough to justify splitting. 
-	if (csize > ceil((1.5) * asize) &&
+	if (csize > 2 * asize &&
 	    tempsize >= (2 * DSIZE)) { // Large enough to split
 		PUT(HDRP(bp), PACK(asize, 1));
 		PUT(FTRP(bp), PACK(asize, 1));
@@ -608,7 +627,12 @@ place(void *bp, size_t asize)
 		// printf("split block size: %zu\n", csize - asize);
 		// printf("split block adr %p\n", bp);
 		//printf("place calls coalesce\n");
-		coalesce(bp);
+
+		// non-deferred
+		//coalesce(bp);
+		// deferred
+		insert_freeblock(bp);
+		
 	} else { //Doesn't split block. 
 		PUT(HDRP(bp), PACK(csize, 1));
 		PUT(FTRP(bp), PACK(csize, 1));
@@ -659,15 +683,15 @@ insert_freelist(void *bp,  void *target)
 
 
 	//FOR POSTERITY:
-	// targetNode->next->prev = bpNode;
-	// bpNode->next = targetNode->next;
-	// bpNode->prev = targetNode;
-	// targetNode->next = bpNode;
+	targetNode->next->prev = bpNode;
+	bpNode->next = targetNode->next;
+	bpNode->prev = targetNode;
+	targetNode->next = bpNode;
 
-	targetNode->prev->next = bpNode;
-	bpNode->next = targetNode;
-	bpNode->prev = targetNode->prev;
-	targetNode->prev = bpNode;
+	// targetNode->prev->next = bpNode;
+	// bpNode->next = targetNode;
+	// bpNode->prev = targetNode->prev;
+	// targetNode->prev = bpNode;
 
 	// printf("bp adr: %p\n", bpNode);
 	// printf("target next after: %p\n", targetNode->next);
