@@ -663,6 +663,7 @@ insert_freeblock(void *bp)
 static void
 insert_freelist(void *bp,  void *target) 
 {
+	
 	//Casts to struct pointer_data * to use next and prev from the struct.
 	struct pointer_data *targetNode, *bpNode;
 
@@ -728,10 +729,10 @@ remove_freeblock(void *bp)
 
 // • Is every block in the free list marked as free? (done)
 // • Are there any contiguous free blocks that somehow escaped coalescing? (done)
-// • Is every free block actually in the free list? 
-// • Do the pointers in the free list point to valid free blocks?
-// • Do any allocated blocks overlap?
-// • Do the pointers in a heap block point to valid heap addresses?
+// • Is every free block actually in the free list? (done)
+// • Do the pointers in the free list point to valid free blocks? (done)
+// • Do any allocated blocks overlap? (NOT SURE HERE)
+// • Do the pointers in a heap block point to valid heap addresses? (done)
 
 /* 
  * The remaining routines are heap consistency checker routines. 
@@ -742,12 +743,12 @@ remove_freeblock(void *bp)
  *   "bp" is the address of a block.
  *
  * Effects:
- *   Perform a minimal check on the block "bp".
+ *   Perform a check on the block "bp".
  */
 static void
 checkblock(void *bp) 
 {
-	//bool alloc = GET_ALLOC(bp); 
+	bool alloc = GET_ALLOC(bp); 
 
 	//Given checks of the block: 
 	if ((uintptr_t)bp % ALIGNMENT)
@@ -756,11 +757,41 @@ checkblock(void *bp)
 		printf("Error: header does not match footer\n");
 	
 	//Additional block checks: 
+
+	//Coalescing: 
 	if(!GET_ALLOC(PREV_BLKP(bp))) {
 		printf("Error: Previous block not coalesced\n");
 	}
 	if(!GET_ALLOC(NEXT_BLKP(bp))) {
 		printf("Error: Next block not coalesced\n");
+	}
+	//If the block is free, check if in freelist and that pointers are in range
+	if(!alloc) {
+		struct pointer_data *bpNode, *prevbp, *nextbp;
+		bpNode = (struct pointer_data *)bp;
+		prevbp = bpNode->prev; 
+		nextbp= bpNode->next;
+		//checks if uninitialized (the default)
+		if ((prevbp == NULL) || (nextbp == NULL)) {
+			printf("Error: bp %p not in list\n", bp);
+		}
+		//checks pointers point to valid addresses
+		if (prevbp <= mem_heap_lo()) {
+			printf("Error: bp %p prev- %p lo out of range\n", bp, prevbp);
+		}
+		if (nextbp <= mem_heap_lo()) {
+			printf("Error: bp %p next- %p lo out of range\n", bp, nextbp);
+		}
+		if (prevbp >= mem_heap_hi()) {
+			printf("Error: bp %p prev- %p high out of range\n", bp, prevbp);
+		}
+		if (nextbp >= mem_heap_hi()) {
+			printf("Error: bp %p next- %p high out of range\n", bp, nextbp);
+		}
+	} else {// Block is allocated, so check for overlap with next block 
+		if (NEXT_BLKP(bp) < FTRP(bp)) {
+			printf("Error: Overlap with next block\n");
+		}
 	}
 	
 }
@@ -783,13 +814,13 @@ checkfreelist(bool verbose)
 		if(verbose) {
 			printf("Entered Bucket %d", i);
 		}
-     	bp = (dummy_head[i]).next;
+     		bp = (dummy_head[i]).next;
 		while(bp != &(dummy_head[i])) {
-
 			if (GET_ALLOC(HDRP(bp))) {
 				printf("Error: allocated block in freelist");
 			}
-			//progress through linked list 
+			//progress through linked list (also checks that 
+			//pointers point to valid free blocks)
 			bp = ((struct pointer_data *)bp)->next;
 		}
 		if(verbose) {
