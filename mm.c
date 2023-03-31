@@ -51,7 +51,7 @@ struct pointer_data {
 #define DSIZE      (2 * WSIZE)    /* Doubleword size (bytes) */
 #define CHUNKSIZE  (1 << 12)      /* Extend heap by this amount (bytes) */
 #define ALIGNMENT  (sizeof(char) * 8)		  /* Byte alignment size (bytes) */
-#define NUM_BUCKETS (20)	/* Num of different free block sizes*/
+#define NUM_BUCKETS (25)	/* Num of different free block sizes*/
 
 
 #define MAX(x, y)  ((x) > (y) ? (x) : (y))  
@@ -103,6 +103,8 @@ static void insert_freeblock(void *bp,  void *target);
 static void remove_freeblock(void *bp);
 static void insert_freelist(void *bp,  void *target);
 
+//for testing 
+//static int num_init_calls = 0;
 
 static int
 round_next_pow2(int num)
@@ -142,17 +144,21 @@ mm_init(void)
 	void *bp;
 	int i;
 
+	//printf("Call # %d\n", num_init_calls);
+	
 	/*creates the memory for the dummy heads, prologue & epilogue*/
 	if ((heap_listp = mem_sbrk((DSIZE * NUM_BUCKETS) + (WSIZE * 3))) == (void *)-1) {
 		return (-1);
 	}
 	
 	//MORE HEADS 
-
+	//printf("start of bucket array: %p\n", heap_listp);
 	dummy_head = (struct pointer_data *)mem_heap_lo();
 	for (i = 0; i < NUM_BUCKETS; i++) {
 		dummy_head[i].next = &(dummy_head[i]);
 		dummy_head[i].prev = &(dummy_head[i]);
+		//printf("addr of bucket %d : %p\n", i, &(dummy_head[i]));
+
 	}
 
 
@@ -166,9 +172,13 @@ mm_init(void)
 	
 	
 	// Put prologue hdr, ftr, and epilogue hdr
+
 	PUT(heap_listp + (NUM_BUCKETS * DSIZE) , PACK(DSIZE, 1)); /* Prologue header */ 
 	PUT(heap_listp + (NUM_BUCKETS * DSIZE) + (1 * WSIZE), PACK(DSIZE, 1)); /* Prologue footer */ 
 	PUT(heap_listp + (NUM_BUCKETS * DSIZE) + (2* WSIZE), PACK(0, 1));   /* Epilogue header */
+	// printf("addr of pro hdr: %p\n", heap_listp + (NUM_BUCKETS * DSIZE));
+	// printf("addr of pro ftr: %p\n", heap_listp + (NUM_BUCKETS * DSIZE) + (1 * WSIZE));
+	// printf("addr of eplg hdr: %p\n", heap_listp + (NUM_BUCKETS * DSIZE) + (2* WSIZE));
 
 	// printf("next adr: %p\n", heap_listp);
 	// printf("prev adr: %p\n", (heap_listp + (1*WSIZE)));
@@ -182,11 +192,13 @@ mm_init(void)
 	// printf("ep hdr: %u\n", *(heap_listp + (4*WSIZE)));
 
 	heap_listp += (NUM_BUCKETS * DSIZE) + (1 * WSIZE);//Aligns the heap pointer between prologue hdr & ftr
-	
+	//printf("addr of hp: %p\n", heap_listp);
 	/* Extend the empty heap with a free block of CHUNKSIZE bytes. */
 	if ((bp = extend_heap(CHUNKSIZE / WSIZE)) == NULL) {
 		return (-1);
 	}
+
+	//printf("addr of bp: %p\n", bp);
 		
 		
 	// printf("hp: %p\n", heap_listp);
@@ -245,10 +257,7 @@ mm_malloc(size_t size)
 
 	/* No fit found.  Get more memory and place the block. */
 	
-	//Try coalescing here first? just a thought (w/ deffered coalescing) during 
-	//segragated explicit  
-
-	//Attempts to extend the heap 
+	//Attempts to extend the heap (returns NULL if fails)
 	extendsize = MAX(asize, CHUNKSIZE);
 	if ((bp = extend_heap(extendsize / WSIZE)) == NULL) {
 		return (NULL);
@@ -259,7 +268,7 @@ mm_malloc(size_t size)
 	place(bp, asize);
 	// Remove from free list
 	//remove_freeblock(bp);
-	
+	//printf("exits malloc\n");
 	return (bp);
 } 
 
@@ -275,7 +284,7 @@ mm_free(void *bp)
 {
 	size_t size;
 	
-
+	//printf("enters free\n");
 	/* Ignore spurious requests. */
 	if (bp == NULL) {
 		return;
@@ -290,6 +299,8 @@ mm_free(void *bp)
 
 	
 	//Add block back into freelist
+	//printf("exits free\n");
+	//printf("free calls coalesce\n");
 	coalesce(bp);
 }
 
@@ -311,7 +322,7 @@ mm_realloc(void *ptr, size_t size)
 {
 	size_t oldsize, asize, freeblock_size, splitblock_size;
 	void *newptr;
-	
+	//printf("enters realloc\n");
 
 
 	// TODO: fix for explicit list
@@ -392,6 +403,7 @@ mm_realloc(void *ptr, size_t size)
 	// get rid of warnings
 	(void)freeblock_size;
 	(void)splitblock_size;
+	
 	return (newptr);
 }
 
@@ -411,6 +423,7 @@ mm_realloc(void *ptr, size_t size)
 static void *
 coalesce(void *bp) 
 {
+	//printf("enter coalsce\n");
 	size_t size = GET_SIZE(HDRP(bp));
 	bool prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
 	bool next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
@@ -418,9 +431,10 @@ coalesce(void *bp)
 	
 
 	if (prev_alloc && next_alloc) {       /* Case 1 */
+		//printf("case 1\n");
 		insert_freeblock(bp, dummy_head);
-		return (bp);
 	} else if (prev_alloc && !next_alloc) {  /* Case 2 - block after free */
+		//printf("case 2\n");
 		size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
 		//Removes block after bp from freelist.
 		remove_freeblock(NEXT_BLKP(bp));
@@ -432,6 +446,7 @@ coalesce(void *bp)
 		insert_freeblock(bp, dummy_head);
 
 	} else if (!prev_alloc && next_alloc) {   /* Case 3 - block before free */
+		//printf("case 3\n");
 		size += GET_SIZE(HDRP(PREV_BLKP(bp)));
 		//remove old block before bp from freelist.
 		remove_freeblock(PREV_BLKP(bp));
@@ -443,9 +458,10 @@ coalesce(void *bp)
 		//Insert into the freelist. 
 		insert_freeblock(bp, dummy_head);
 	} else { /* Case 4 - both before, after free*/
+		//printf("case 4\n");
 		//remove both old block, block after bp from freelist
 		remove_freeblock(NEXT_BLKP(bp));
-		remove_freeblock(PREV_BLKP(bp));                                   
+		remove_freeblock(PREV_BLKP(bp));
 		size += GET_SIZE(HDRP(PREV_BLKP(bp))) + 
 		    GET_SIZE(FTRP(NEXT_BLKP(bp)));
 		PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
@@ -456,6 +472,7 @@ coalesce(void *bp)
 		//Insert into the freelist. 
 		insert_freeblock(bp, dummy_head);
 	}
+	//printf("exits coalesce\n");
 	return (bp);
 }
 
@@ -471,7 +488,7 @@ extend_heap(size_t words)
 {
 	size_t size;
 	void *bp;
-
+	//printf("enters extend_heap\n");
 	/* Allocate an even number of words to maintain alignment. */
 	size = (words % 2) ? (words + 1) * WSIZE : words * WSIZE;
 	if ((bp = mem_sbrk(size)) == (void *)-1) {
@@ -485,6 +502,8 @@ extend_heap(size_t words)
 	PUT(HDRP(NEXT_BLKP(bp)), PACK(0, 1)); /* New epilogue header */
 
 	/* Coalesce if the previous block was free. */
+	//printf("extend_heap calls coalesce\n");
+	//printf("exits extend heap");
 	return (coalesce(bp));
 }
 
@@ -501,6 +520,7 @@ find_fit(size_t asize)
 {
 	void *bp;
 	int bucket, i;
+
 	//printf("enters find_fit\n");
 	
 	/*Change: search through free list */
@@ -523,7 +543,7 @@ find_fit(size_t asize)
 			
 			if (asize <= GET_SIZE(HDRP(bp))) {
 				// printf("space needed: %zu     block size: %zu\n", asize, GET_SIZE(HDRP(bp)));
-				// printf("FOUND FIT\n");
+				//printf("FOUND FIT\n");
 				return (bp);
 			}
 
@@ -547,6 +567,7 @@ find_fit(size_t asize)
 	// 	bp = ((struct pointer_data *)bp)->next;
 	// }
 	/* No fit was found. */
+	//printf("didn't find fit\n");
 	return (NULL);
 }
 
@@ -562,6 +583,7 @@ find_fit(size_t asize)
 static void
 place(void *bp, size_t asize)
 {
+	//printf("enters place\n");
 	size_t csize, tempsize;
 	csize = GET_SIZE(HDRP(bp));   
 	tempsize = (csize -  (ceil((1.5) * asize)));
@@ -583,13 +605,14 @@ place(void *bp, size_t asize)
 		PUT(FTRP(bp), PACK(csize - asize, 0));
 		// printf("split block size: %zu\n", csize - asize);
 		// printf("split block adr %p\n", bp);
+		//printf("place calls coalesce\n");
 		coalesce(bp);
 	} else { //Doesn't split block. 
 		PUT(HDRP(bp), PACK(csize, 1));
 		PUT(FTRP(bp), PACK(csize, 1));
 		remove_freeblock(bp);
 	}
-
+	//printf("exits place\n");
 }
 
 static void
@@ -599,8 +622,9 @@ insert_freeblock(void *bp,  void *target)
 	struct pointer_data *head;
 	head = (struct pointer_data *)target;
 	size = GET_SIZE(HDRP(bp));
-	bucket = get_next_pow2(size);
-	insert_freelist(bp, &(head[bucket - 1]));
+	bucket = get_next_pow2(size) - 1;
+	//printf("asize:     %d    bucket: %d\n", size, bucket);
+	insert_freelist(bp, &(head[bucket]));
 }
 
 
@@ -678,9 +702,9 @@ remove_freeblock(void *bp)
 //Check that everything in freelist is actually free in checking routine 
 
 
-// • Is every block in the free list marked as free?
-// • Are there any contiguous free blocks that somehow escaped coalescing?
-// • Is every free block actually in the free list?
+// • Is every block in the free list marked as free? (done)
+// • Are there any contiguous free blocks that somehow escaped coalescing? (done)
+// • Is every free block actually in the free list? 
 // • Do the pointers in the free list point to valid free blocks?
 // • Do any allocated blocks overlap?
 // • Do the pointers in a heap block point to valid heap addresses?
@@ -708,6 +732,12 @@ checkblock(void *bp)
 		printf("Error: header does not match footer\n");
 	
 	//Additional block checks: 
+	if(!GET_ALLOC(PREV_BLKP(bp))) {
+		printf("Error: Previous block not coalesced\n");
+	}
+	if(!GET_ALLOC(NEXT_BLKP(bp))) {
+		printf("Error: Next block not coalesced\n");
+	}
 	
 }
 
@@ -719,25 +749,45 @@ checkblock(void *bp)
 *   Preform a check of the segregated free lists for consistency. 
 *
 */
-// void 
-// checkfreelist(bool verbose)
-// {
-// 	dummy_head = (struct pointer_data *)mem_heap_lo();
+void 
+checkfreelist(bool verbose)
+{
+	void *bp;
+	dummy_head = (struct pointer_data *)mem_heap_lo();
 
-// 	for (int i = 0; i < NUM_BUCKETS; i++) {
-// 		if(verbose) {
-// 			printf("Entered Bucket %d", i);
-// 		}
-// 		//while(dummy_head[i].next)
-// 		if(verbose) {
-// 			printf("Exited Bucket %d", i);
-// 		}
+	for (int i = 0; i < NUM_BUCKETS; i++) {
+		if(verbose) {
+			printf("Entered Bucket %d", i);
+		}
+     	bp = (dummy_head[i]).next;
+		while(bp != &(dummy_head[i])) {
 
+			if (GET_ALLOC(HDRP(bp))) {
+				printf("Error: allocated block in freelist");
+			}
+			//progress through linked list 
+			bp = ((struct pointer_data *)bp)->next;
+		}
+		if(verbose) {
+			printf("Exited Bucket %d", i);
+		}
+	}
+}
+
+// for (i = bucket; i < NUM_BUCKETS; i++) {
+// 		// go through the free list of the bucket
+// 		bp = (dummy_head[i]).next;
+// 		while (bp != &(dummy_head[i])) {
+			
+// 			if (asize <= GET_SIZE(HDRP(bp))) {
+// 				// printf("space needed: %zu     block size: %zu\n", asize, GET_SIZE(HDRP(bp)));
+// 				// printf("FOUND FIT\n");
+// 				return (bp);
+// 			}
+
+// 			bp = ((struct pointer_data *)bp)->next;
+// 		}
 // 	}
-
-	
-// }
-
 
 
 /* 
@@ -767,7 +817,7 @@ checkheap(bool verbose)
 			printblock(bp);
 		checkblock(bp);
 	}
-	//Prints footer 
+	//Prints Epilogue if verbose
 	if (verbose)
 		printblock(bp);
 		
