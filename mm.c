@@ -81,7 +81,7 @@ static char *heap_listp; /* Pointer to first block */
 static struct pointer_data *dummy_head; /* Pointer to dummy head list*/
 
 /* Function prototypes for internal helper routines: */
-static void *coalesce(void *bp);
+// static void *coalesce(void *bp);
 static void *extend_heap(size_t words);
 static void *find_fit(size_t asize);
 static void place(void *bp, size_t asize);
@@ -310,10 +310,10 @@ mm_free(void *bp)
 	//printf("free calls coalesce\n");
 
 	//non-deferred
-	coalesce(bp);
+	//coalesce(bp);
 
 	//deferred
-	//insert_freeblock(bp);
+	insert_freeblock(bp);
 }
 
 /*
@@ -432,61 +432,61 @@ mm_realloc(void *ptr, size_t size)
  *   Perform boundary tag coalescing. Returns the address of the coalesced
  *   block after inserting it into the freelist.
  */
-static void *
-coalesce(void *bp) 
-{
-	//printf("enter coalsce\n");
-	size_t size = GET_SIZE(HDRP(bp));
-	bool prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
-	bool next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
+// static void *
+// coalesce(void *bp) 
+// {
+// 	//printf("enter coalsce\n");
+// 	size_t size = GET_SIZE(HDRP(bp));
+// 	bool prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
+// 	bool next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
 
 	
 	
-	if ((prev_alloc && next_alloc) || size > (1 << 20)) {       /* Case 1 */
-		//printf("case 1\n");
-		insert_freeblock(bp);
-	} else if (prev_alloc && !next_alloc) {  /* Case 2 - block after free */
-		//printf("case 2\n");
-		size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
-		//Removes block after bp from freelist.
-		remove_freeblock(NEXT_BLKP(bp));
+// 	if ((prev_alloc && next_alloc) || size > (1 << 20)) {       /* Case 1 */
+// 		//printf("case 1\n");
+// 		insert_freeblock(bp);
+// 	} else if (prev_alloc && !next_alloc) {  /* Case 2 - block after free */
+// 		//printf("case 2\n");
+// 		size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
+// 		//Removes block after bp from freelist.
+// 		remove_freeblock(NEXT_BLKP(bp));
 		
-		PUT(HDRP(bp), PACK(size, 0));
-		PUT(FTRP(bp), PACK(size, 0));
+// 		PUT(HDRP(bp), PACK(size, 0));
+// 		PUT(FTRP(bp), PACK(size, 0));
 		
-		//Inserts coalesced block into freelist.
-		insert_freeblock(bp);
+// 		//Inserts coalesced block into freelist.
+// 		insert_freeblock(bp);
 
-	} else if (!prev_alloc && next_alloc) {   /* Case 3 - block before free */
-		//printf("case 3\n");
-		size += GET_SIZE(HDRP(PREV_BLKP(bp)));
-		//remove old block before bp from freelist.
-		remove_freeblock(PREV_BLKP(bp));
+// 	} else if (!prev_alloc && next_alloc) {   /* Case 3 - block before free */
+// 		//printf("case 3\n");
+// 		size += GET_SIZE(HDRP(PREV_BLKP(bp)));
+// 		//remove old block before bp from freelist.
+// 		remove_freeblock(PREV_BLKP(bp));
 
-		PUT(FTRP(bp), PACK(size, 0));
-		PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
-		//Move the bp pointer to the previous bp
-		bp = PREV_BLKP(bp);
-		//Insert into the freelist. 
-		insert_freeblock(bp);
-	} else { /* Case 4 - both before, after free*/
-		//printf("case 4\n");
-		//remove both old block, block after bp from freelist
-		remove_freeblock(NEXT_BLKP(bp));
-		remove_freeblock(PREV_BLKP(bp));
-		size += GET_SIZE(HDRP(PREV_BLKP(bp))) + 
-		    GET_SIZE(FTRP(NEXT_BLKP(bp)));
-		PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
-		PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
+// 		PUT(FTRP(bp), PACK(size, 0));
+// 		PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
+// 		//Move the bp pointer to the previous bp
+// 		bp = PREV_BLKP(bp);
+// 		//Insert into the freelist. 
+// 		insert_freeblock(bp);
+// 	} else { /* Case 4 - both before, after free*/
+// 		//printf("case 4\n");
+// 		//remove both old block, block after bp from freelist
+// 		remove_freeblock(NEXT_BLKP(bp));
+// 		remove_freeblock(PREV_BLKP(bp));
+// 		size += GET_SIZE(HDRP(PREV_BLKP(bp))) + 
+// 		    GET_SIZE(FTRP(NEXT_BLKP(bp)));
+// 		PUT(HDRP(PREV_BLKP(bp)), PACK(size, 0));
+// 		PUT(FTRP(NEXT_BLKP(bp)), PACK(size, 0));
 		
-		//Move the bp pointer to the previous bp 
-		bp = PREV_BLKP(bp); 
-		//Insert into the freelist. 
-		insert_freeblock(bp);
-	}
-	//printf("exits coalesce\n");
-	return (bp);
-}
+// 		//Move the bp pointer to the previous bp 
+// 		bp = PREV_BLKP(bp); 
+// 		//Insert into the freelist. 
+// 		insert_freeblock(bp);
+// 	}
+// 	//printf("exits coalesce\n");
+// 	return (bp);
+// }
 
 /* 
  * Requires:
@@ -776,16 +776,16 @@ checkblock(void *bp)
 			printf("Error: bp %p not in list\n", bp);
 		}
 		//checks pointers point to valid addresses
-		if (prevbp <= mem_heap_lo()) {
+		if (prevbp <= (struct pointer_data *)mem_heap_lo()) {
 			printf("Error: bp %p prev- %p lo out of range\n", bp, prevbp);
 		}
-		if (nextbp <= mem_heap_lo()) {
+		if (nextbp <= (struct pointer_data *)mem_heap_lo()) {
 			printf("Error: bp %p next- %p lo out of range\n", bp, nextbp);
 		}
-		if (prevbp >= mem_heap_hi()) {
+		if (prevbp >= (struct pointer_data *)mem_heap_hi()) {
 			printf("Error: bp %p prev- %p high out of range\n", bp, prevbp);
 		}
-		if (nextbp >= mem_heap_hi()) {
+		if (nextbp >= (struct pointer_data *)mem_heap_hi()) {
 			printf("Error: bp %p next- %p high out of range\n", bp, nextbp);
 		}
 	} else {// Block is allocated, so check for overlap with next block 
