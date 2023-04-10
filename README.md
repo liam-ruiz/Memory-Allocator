@@ -1,6 +1,6 @@
 A memory allocator using a segregated list structure, that implements the use of malloc, realloc, and free.
 
-There are some accompanying for the profilling of the memory allocator. 
+There are some accompanying files for the profilling of the memory allocator. 
 
 Running mdriver.c will test the allocator on a series of trace files that simulate malloc, realloc, and free calls and 
 document their throughput and peak memory utilization. Adding the -v option when running mdriver.c will give a breakdown 
